@@ -1,0 +1,28 @@
+{
+  "genesis": {
+    "l1": {
+      "hash": "0x902808dce553bdf0542084261277f13ce4c7752e800f1868052ad147ab0f9388",
+      "number": 0
+    },
+    "l2": {
+      "hash": "0xb698d2d49472660157f6ef388822dab015bf40fb4d6d170949fead24741524e4",
+      "number": 0
+    },
+    "l2_time": 1680120198,
+    "system_config": {
+      "batcherAddr": "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+      "overhead": "0x0000000000000000000000000000000000000000000000000000000000000834",
+      "scalar": "0x00000000000000000000000000000000000000000000000000000000000f4240",
+      "gasLimit": 15000000
+    }
+  },
+  "block_time": 1000,
+  "max_sequencer_drift": 10,
+  "seq_window_size": 15,
+  "channel_timeout": 40,
+  "l1_chain_id": 900,
+  "l2_chain_id": 901,
+  "batch_inbox_address": "0xff00000000000000000000000000000000000000",
+  "deposit_contract_address": "0x6900000000000000000000000000000000000001",
+  "l1_system_config_address": "0x6900000000000000000000000000000000000009"
+}
