@@ -19,7 +19,10 @@ var (
 	endpoint         = "http://localhost:8551"
 	secretConfigPath = "./static/test-jwt-secret.txt"
 	rollupConfigPath = "./static/rollup.json"
-	key              = "8166f546bab6da521a8369cab06c5d2b9e46670292d85c875ee9ec20e84ffb61"
+	// 0xcd3B766CCDd6AE721141F452C550Ca635964ce71
+	key1 = "8166f546bab6da521a8369cab06c5d2b9e46670292d85c875ee9ec20e84ffb61"
+	// 0xdF3e18d64BC6A983f673Ab319CCaE4f1a57C7097
+	key2 = "c526ee95bf44d8fc405a158bb884d9d1238d99f0612e9f33d006bb0789009aaa"
 )
 
 func Exit(err error) {
@@ -45,7 +48,18 @@ func main() {
 
 	// Submit transaction
 	transactionBuilder := transaction.NewTransactionBuilder(rpcClient, rollupConfig)
-	err = transactionBuilder.SubmitTransaction(key)
+	err = transactionBuilder.SubmitTransaction(key1)
+	if err != nil {
+		Exit(err)
+	}
+
+	// Build another transaction and add it in attributes
+	// This is just like the system transaction, but it is a standard transaction
+	tx, err := transactionBuilder.BuildTestTransaction(key2)
+	if err != nil {
+		Exit(err)
+	}
+	binaryTx, err := tx.MarshalBinary()
 	if err != nil {
 		Exit(err)
 	}
@@ -71,7 +85,12 @@ func main() {
 		FinalizedBlockHash: block.Hash,
 	}
 
-	var transactions []eth.Data
+	transactions := make([]eth.Data, 1)
+	// add transaction
+	// This is just like the system transaction, but it is a standard transaction
+	// This should be included first
+	transactions[0] = binaryTx
+
 	futureTimeStamp := block.Time + 1000
 	gasLimit := hexutil.Uint64(15000000)
 	attributes := &eth.PayloadAttributes{
@@ -95,8 +114,8 @@ func main() {
 		Exit(err)
 	}
 	// verify transaction number
-	if len(executionRes.Transactions) != 1 {
-		fmt.Println("Invalid execution payload - should have 1 transaction")
+	if len(executionRes.Transactions) != 2 {
+		fmt.Println("Invalid execution payload - should have 2 transaction")
 		os.Exit(1)
 	}
 
@@ -138,8 +157,8 @@ func main() {
 				os.Exit(1)
 			}
 
-			if len(newBlock.Transactions) != 1 {
-				fmt.Println("Invalid new block - block should have 1 transaction")
+			if len(newBlock.Transactions) != 2 {
+				fmt.Println("Invalid new block - block should have 2 transaction")
 				os.Exit(1)
 			}
 

@@ -23,7 +23,7 @@ func NewTransactionBuilder(rpcClient *rpc.RpcClient, rollupConfig *rollup.Config
 	}
 }
 
-func (t *TransactionBuilder) BuildTransaction(key string) (*types.Transaction, error) {
+func (t *TransactionBuilder) BuildTestTransaction(key string) (*types.Transaction, error) {
 	ecskey, _ := crypto.HexToECDSA(key)
 	address := crypto.PubkeyToAddress(ecskey.PublicKey)
 	signer := types.NewEIP155Signer(t.RollupConfig.L2ChainID)
@@ -50,9 +50,14 @@ func (t *TransactionBuilder) BuildTransaction(key string) (*types.Transaction, e
 	return tx, nil
 }
 
+// func (t *TransactionBuilder) BuildSystemTransaction() {
+// 	var seqNum uint64 = 1
+// 	l1InfoTx, err := derive.L1InfoDepositBytes(seqNum, l1Info, sysConfig)
+// }
+
 func (t *TransactionBuilder) SubmitTransaction(key string) error {
 	fmt.Println("Building and Submitting Test Transaction...")
-	tx, err := t.BuildTransaction(key)
+	tx, err := t.BuildTestTransaction(key)
 	if err != nil {
 		return fmt.Errorf("Failed to build transaction: %s", err.Error())
 	}
