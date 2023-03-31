@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 var (
@@ -44,29 +43,11 @@ func main() {
 		Exit(err)
 	}
 
-	// Get nonce
-	ecskey, _ := crypto.HexToECDSA(key)
-	address := crypto.PubkeyToAddress(ecskey.PublicKey)
-	nonce, err := rpcClient.GetNextNonce(&address)
-	if err != nil {
-		Exit(err)
-	}
-
 	// Submit transaction
 	transactionBuilder := transaction.NewTransactionBuilder(rpcClient, rollupConfig)
 	err = transactionBuilder.SubmitTransaction(key)
 	if err != nil {
 		Exit(err)
-	}
-
-	// Check nonce
-	newNonce, err := rpcClient.GetNextNonce(&address)
-	if err != nil {
-		Exit(err)
-	}
-	if newNonce != nonce+1 {
-		fmt.Println("Nonce is not bumped... Maybe need to wait for a while? The logic is not added yet.")
-		os.Exit(1)
 	}
 
 	// Play with engine_api
@@ -113,6 +94,12 @@ func main() {
 	if err != nil {
 		Exit(err)
 	}
+	// verify transaction number
+	if len(executionRes.Transactions) != 1 {
+		fmt.Println("Invalid execution payload - should have 1 transaction")
+		os.Exit(1)
+	}
+
 	// Step 3: Execute payload
 	// engine_newPayloadV1 -> Execute payload
 	_, err = engine.ExecutePayload(executionRes)

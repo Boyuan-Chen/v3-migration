@@ -46,6 +46,7 @@ func (e *EngineAPI) ForkchoiceUpdate(fc *eth.ForkchoiceState, attributes *eth.Pa
 	}
 	fmt.Println("-> Forkchoice Updated")
 	fmt.Println("-> New PayloadId: ", res.PayloadID)
+	fmt.Println("--------------------------------------------")
 	return res, nil
 }
 
@@ -59,6 +60,8 @@ func (e *EngineAPI) GetPayload(payloadID *beacon.PayloadID) (*eth.ExecutionPaylo
 	}
 	fmt.Println("-> GetPayload Success")
 	fmt.Println("-> New Block Hash: ", res.BlockHash)
+	fmt.Println("-> New Block Transaction: ", res.Transactions)
+	fmt.Println("--------------------------------------------")
 	return res, nil
 }
 
@@ -72,5 +75,6 @@ func (e *EngineAPI) ExecutePayload(executionPayload *eth.ExecutionPayload) (*eth
 	}
 	fmt.Println("-> ExecutePayload Success")
 	fmt.Println("-> New Latest Valid Hash: ", res.LatestValidHash)
+	fmt.Println("--------------------------------------------")
 	return res, nil
 }

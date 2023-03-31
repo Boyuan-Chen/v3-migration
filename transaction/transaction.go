@@ -51,6 +51,7 @@ func (t *TransactionBuilder) BuildTransaction(key string) (*types.Transaction, e
 }
 
 func (t *TransactionBuilder) SubmitTransaction(key string) error {
+	fmt.Println("Building and Submitting Test Transaction...")
 	tx, err := t.BuildTransaction(key)
 	if err != nil {
 		return fmt.Errorf("Failed to build transaction: %s", err.Error())
@@ -60,5 +61,6 @@ func (t *TransactionBuilder) SubmitTransaction(key string) error {
 		return fmt.Errorf("Failed to send transaction: %s", err.Error())
 	}
 	fmt.Println("-> Test Transaction Submitted")
+	fmt.Println("--------------------------------------------")
 	return nil
 }
