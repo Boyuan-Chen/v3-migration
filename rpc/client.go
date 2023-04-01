@@ -87,3 +87,18 @@ func (rpc *RpcClient) SendRawTransaction(tx *types.Transaction) error {
 	}
 	return nil
 }
+
+func (rpc *RpcClient) GetBalance(addr common.Address) (*big.Int, error) {
+	var balance string
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	if err := rpc.Client.CallContext(ctx, &balance, "eth_getBalance", addr, "latest"); err != nil {
+		return nil, errors.New("Failed to obtain balance")
+	}
+	// string to big.Int
+	balanceInt, ok := new(big.Int).SetString(balance, 0)
+	if !ok {
+		return nil, errors.New("Failed to convert balance to big.Int")
+	}
+	return balanceInt, nil
+}
