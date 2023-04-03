@@ -15,14 +15,16 @@ import (
 )
 
 type TransactionBuilder struct {
-	RpcClient    *rpc.RpcClient
-	RollupConfig *rollup.Config
+	SmartContractViewer *SmartContractViewer
+	RpcClient           *rpc.RpcClient
+	RollupConfig        *rollup.Config
 }
 
-func NewTransactionBuilder(rpcClient *rpc.RpcClient, rollupConfig *rollup.Config) *TransactionBuilder {
+func NewTransactionBuilder(smartContractViewer *SmartContractViewer, rpcClient *rpc.RpcClient, rollupConfig *rollup.Config) *TransactionBuilder {
 	return &TransactionBuilder{
-		RpcClient:    rpcClient,
-		RollupConfig: rollupConfig,
+		SmartContractViewer: smartContractViewer,
+		RpcClient:           rpcClient,
+		RollupConfig:        rollupConfig,
 	}
 }
 
@@ -65,13 +67,51 @@ func (t *TransactionBuilder) BuildTestDepositETHTransaction(from common.Address,
 	}
 	dep.SourceHash = source.SourceHash()
 	dep.From = from
-	dep.To = &to
+	dep.To = &utils.L2MessengerAddress
 	dep.Value = amount
 	dep.Mint = amount
-	dep.Gas = 10000000
+	dep.Gas = 15000000
+	// build payload
 	dep.Data = []byte{}
 	dep.IsSystemTransaction = false
 
+	return &dep, nil
+}
+
+func (t *TransactionBuilder) BuildTestDepositBOBATransaction(from common.Address, to common.Address, amount *big.Int) (*types.DepositTx, error) {
+	// SourceHash is random generated
+	// The sourceHash of a deposit transaction is computed based on the origin:
+	// User-deposited: keccak256(bytes32(uint256(0)), keccak256(l1BlockHash, bytes32(uint256(l1LogIndex)))). Where the l1BlockHash, and l1LogIndex all refer to the inclusion of the deposit log event on L1. l1LogIndex is the index of the deposit event log in the combined list of log events of the block.
+	// op-node/rollup/derive/deposit_source.go
+	var dep types.DepositTx
+	source := derive.UserDepositSource{
+		L1BlockHash: utils.MockL1Hash(rand.Uint64()),
+		LogIndex:    rand.Uint64(),
+	}
+
+	dep.SourceHash = source.SourceHash()
+	dep.From = utils.ApplyL1ToL2Alias(utils.L1MessengerAddress)
+	dep.To = &to
+	dep.Value = big.NewInt(0)
+	dep.Mint = nil
+	dep.Gas = 15000000
+	dep.IsSystemTransaction = false
+
+	nonce, err := t.SmartContractViewer.GetNonceFromL1Messenger()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get nonce from L1 Messenger: %s", err.Error())
+	}
+
+	/** CAREFUL: This is a hack to make sure the nonce is unique on L2 **/
+	// Since nonce doesn't change on L1, we need to add a random number to it
+	// to make sure the nonce is unique on L2
+	nonce = nonce.Add(nonce, big.NewInt(int64(rand.Uint64())))
+
+	data, err := BuildBobaDepositFromL1ToL2(&from, amount, nonce)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to build Boba payload: %s", err.Error())
+	}
+	dep.Data = data
 	return &dep, nil
 }
 

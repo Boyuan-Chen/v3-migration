@@ -10,24 +10,32 @@ import (
 	"github.com/Boyuan-Chen/v3-migration/engineapi"
 	"github.com/Boyuan-Chen/v3-migration/rpc"
 	"github.com/Boyuan-Chen/v3-migration/transaction"
+	"github.com/Boyuan-Chen/v3-migration/utils"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 var (
 	// for local testing
-	endpoint         = "http://localhost:8551"
+	l1Endpoint       = "http://localhost:8545"
+	l2PublicEndpoint = "http://localhost:9545"
+	l2Endpoint       = "http://localhost:8551"
+
 	secretConfigPath = "./static/test-jwt-secret.txt"
 	rollupConfigPath = "./static/rollup.json"
+
 	// 0xcd3B766CCDd6AE721141F452C550Ca635964ce71
 	key1 = "8166f546bab6da521a8369cab06c5d2b9e46670292d85c875ee9ec20e84ffb61"
 	// 0xdF3e18d64BC6A983f673Ab319CCaE4f1a57C7097
 	key2 = "c526ee95bf44d8fc405a158bb884d9d1238d99f0612e9f33d006bb0789009aaa"
 	// 0xFABB0ac9d68B0B445fB7357272Ff202C5651694a
-	key3          = "a267530f49f8280200edf313ee7af6b827f2a8bce2897751d06a843f644967b1"
-	mintETHAmount = big.NewInt(1000000000)
+	key3 = "a267530f49f8280200edf313ee7af6b827f2a8bce2897751d06a843f644967b1"
+
+	mintETHAmount  = big.NewInt(1000000000)
+	mintBOBAAmount = big.NewInt(1000000000)
 )
 
 func Exit(err error) {
@@ -46,13 +54,22 @@ func main() {
 	}
 
 	// create Rpc client
-	rpcClient, err := rpc.NewRpcClient(endpoint, *secret)
+	rpcClient, err := rpc.NewRpcClient(l2Endpoint, *secret)
+	if err != nil {
+		Exit(err)
+	}
+	l1EthClient, err := ethclient.Dial(l1Endpoint)
+	if err != nil {
+		Exit(err)
+	}
+	l2EthClient, err := ethclient.Dial(l2PublicEndpoint)
 	if err != nil {
 		Exit(err)
 	}
 
 	// Build and submit transaction to tx pool
-	transactionBuilder := transaction.NewTransactionBuilder(rpcClient, rollupConfig)
+	smartContractViewer := transaction.NewSmartContractViewer(l1EthClient, l2EthClient)
+	transactionBuilder := transaction.NewTransactionBuilder(smartContractViewer, rpcClient, rollupConfig)
 	err = transactionBuilder.SubmitTransaction(key1)
 	if err != nil {
 		Exit(err)
@@ -63,6 +80,16 @@ func main() {
 	depositAddress := crypto.PubkeyToAddress(ecskey.PublicKey)
 	depositETHTx, _ := transactionBuilder.BuildTestDepositETHTransaction(depositAddress, depositAddress, mintETHAmount)
 	binaryDepositTx, err := transactionBuilder.MarshalBinary(depositETHTx)
+	if err != nil {
+		Exit(err)
+	}
+
+	// Build a deposit transaction that mints BOBA on L2
+	depositBOBATx, err := transactionBuilder.BuildTestDepositBOBATransaction(depositAddress, utils.L2MessengerAddress, mintBOBAAmount)
+	if err != nil {
+		Exit(err)
+	}
+	binaryDepositBOBATx, err := transactionBuilder.MarshalBinary(depositBOBATx)
 	if err != nil {
 		Exit(err)
 	}
@@ -85,11 +112,19 @@ func main() {
 		Exit(err)
 	}
 
-	// Get balance
-	depositAddressBalance, err := rpcClient.GetBalance(depositAddress)
+	// Get ETH balance
+	preEthBalance, err := rpcClient.GetBalance(depositAddress)
 	if err != nil {
 		Exit(err)
 	}
+	fmt.Println("-> ETH Balance before deposit: ", preEthBalance)
+
+	// Get BOBA balance
+	preBOBABalance, err := smartContractViewer.GetBOBABalance(&depositAddress)
+	if err != nil {
+		Exit(err)
+	}
+	fmt.Println("-> BOBA Balance before deposit: ", preBOBABalance)
 
 	// Create engine
 	engine, err := engineapi.NewEngineAPI(rpcClient, rollupConfig)
@@ -105,12 +140,13 @@ func main() {
 		FinalizedBlockHash: block.Hash,
 	}
 
-	transactions := make([]eth.Data, 2)
+	transactions := make([]eth.Data, 3)
 	// add transaction
 	// This is just like the system transaction, but it is a standard transaction
 	// This should be included first
 	transactions[0] = binaryDepositTx
-	transactions[1] = binaryTx
+	transactions[1] = binaryDepositBOBATx
+	transactions[2] = binaryTx
 
 	futureTimeStamp := block.Time + 1000
 	gasLimit := hexutil.Uint64(15000000)
@@ -162,11 +198,19 @@ func main() {
 		Exit(err)
 	}
 
-	// Check balance
-	postDepositAddressBalance, err := rpcClient.GetBalance(depositAddress)
+	// Get Eth balance
+	postEthBalance, err := rpcClient.GetBalance(depositAddress)
 	if err != nil {
 		Exit(err)
 	}
+	fmt.Println("-> ETH Balance after deposit: ", postEthBalance)
+
+	// Get BOBA balance
+	postBOBABalance, err := smartContractViewer.GetBOBABalance(&depositAddress)
+	if err != nil {
+		Exit(err)
+	}
+	fmt.Println("-> BOBA Balance after deposit: ", postBOBABalance)
 
 	// security check
 	for i := 0; i < 10; i++ {
@@ -186,9 +230,15 @@ func main() {
 				os.Exit(1)
 			}
 
-			postBalance := depositAddressBalance.Add(depositAddressBalance, mintETHAmount)
-			if (postDepositAddressBalance.Cmp(postBalance)) != 0 {
-				fmt.Println("Invalid new block - depositAddressBalance should be increased")
+			ethBalance := preEthBalance.Add(preEthBalance, mintETHAmount)
+			if (postEthBalance.Cmp(ethBalance)) != 0 {
+				fmt.Println("Invalid new block - Eth should be increased")
+				os.Exit(1)
+			}
+
+			bobaBalance := preBOBABalance.Add(preBOBABalance, mintBOBAAmount)
+			if (postBOBABalance.Cmp(bobaBalance)) != 0 {
+				fmt.Println("Invalid new block - Boba should be increased")
 				os.Exit(1)
 			}
 
