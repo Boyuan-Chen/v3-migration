@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
@@ -107,7 +108,7 @@ func main() {
 
 	// Play with engine_api
 	// Get latest block
-	block, err := rpcClient.GetBlock()
+	block, err := rpcClient.GetLatestBlock()
 	if err != nil {
 		Exit(err)
 	}
@@ -140,7 +141,7 @@ func main() {
 		FinalizedBlockHash: block.Hash,
 	}
 
-	transactions := make([]eth.Data, 3)
+	transactions := make([]eth.Data, 1)
 	// add transaction
 	// This is just like the system transaction, but it is a standard transaction
 	// This should be included first
@@ -159,6 +160,7 @@ func main() {
 		GasLimit:              (*eth.Uint64Quantity)(&gasLimit),
 	}
 
+	// engine_forkchoiceUpdatedV1
 	fcUpdateRes, err := engine.ForkchoiceUpdate(fc, attributes)
 	if err != nil {
 		Exit(err)
@@ -170,15 +172,25 @@ func main() {
 	if err != nil {
 		Exit(err)
 	}
+	var txType types.Transaction
+	fmt.Println("-> Execution payload: ", executionRes)
 	pendingTransactionsNum := len(executionRes.Transactions)
 	fmt.Println("-> Pending transaction number: ", pendingTransactionsNum)
-
-	// Step 3: Execute payload
-	// engine_newPayloadV1 -> Execute payload
-	_, err = engine.ExecutePayload(executionRes)
+	fmt.Println("-> Pending transaction hash: ", executionRes.Transactions[0])
+	err = txType.UnmarshalBinary(executionRes.Transactions[0])
 	if err != nil {
 		Exit(err)
 	}
+	fmt.Println("-> Pending transaction type: ", txType.Hash().Hex())
+
+	// Step 3: Execute payload
+	// engine_newPayloadV1 -> Execute payload
+	res, err := engine.ExecutePayload(executionRes)
+	if err != nil {
+		Exit(err)
+	}
+
+	fmt.Println("-> Execution result: ", res)
 
 	// Step 4: Submit block
 	// engine_executePayloadV1 -> Submit block
@@ -193,7 +205,7 @@ func main() {
 	}
 
 	// Check block number
-	newBlock, err := rpcClient.GetBlock()
+	newBlock, err := rpcClient.GetLatestBlock()
 	if err != nil {
 		Exit(err)
 	}
@@ -204,6 +216,13 @@ func main() {
 		Exit(err)
 	}
 	fmt.Println("-> ETH Balance after deposit: ", postEthBalance)
+	fmt.Println("-> ETH Balance diff: ", postEthBalance.Sub(postEthBalance, preEthBalance))
+
+	targetBalance, err := rpcClient.GetBalance(common.HexToAddress("0x00000000000000000000000000000000deadbeef"))
+	if err != nil {
+		Exit(err)
+	}
+	fmt.Println("-> Target balance: ", targetBalance)
 
 	// Get BOBA balance
 	postBOBABalance, err := smartContractViewer.GetBOBABalance(&depositAddress)
