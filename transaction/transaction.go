@@ -175,7 +175,7 @@ func (t *TransactionBuilder) SubmitTransaction(key string) error {
 	return nil
 }
 
-func (t *TransactionBuilder) MarshalBinary(tx interface{}) ([]byte, error) {
+func MarshalBinary(tx interface{}) ([]byte, error) {
 	switch tx.(type) {
 	case *types.Transaction:
 		binaryTx, err := tx.(*types.Transaction).MarshalBinary()
