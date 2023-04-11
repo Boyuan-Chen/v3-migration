@@ -1,7 +1,6 @@
 package rpc
 
 import (
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -14,7 +13,7 @@ type Block struct {
 	Root        common.Hash      `json:"stateRoot"`
 	TxHash      common.Hash      `json:"transactionsRoot"`
 	ReceiptHash common.Hash      `json:"receiptsRoot"`
-	Bloom       eth.Bytes256     `json:"logsBloom"`
+	Bloom       hexutil.Bytes    `json:"logsBloom"`
 	Difficulty  hexutil.Big      `json:"difficulty"`
 	Number      hexutil.Uint64   `json:"number"`
 	GasLimit    hexutil.Uint64   `json:"gasLimit"`
@@ -40,7 +39,7 @@ type LegacyBlock struct {
 	Root        common.Hash      `json:"stateRoot"`
 	TxHash      common.Hash      `json:"transactionsRoot"`
 	ReceiptHash common.Hash      `json:"receiptsRoot"`
-	Bloom       eth.Bytes256     `json:"logsBloom"`
+	Bloom       hexutil.Bytes    `json:"logsBloom"`
 	Difficulty  hexutil.Big      `json:"difficulty"`
 	Number      hexutil.Uint64   `json:"number"`
 	GasLimit    hexutil.Uint64   `json:"gasLimit"`

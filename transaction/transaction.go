@@ -170,7 +170,7 @@ func (t *TransactionBuilder) SubmitTransaction(key string) error {
 	if err != nil {
 		return fmt.Errorf("Failed to send transaction: %s", err.Error())
 	}
-	fmt.Println("-> Test Transaction Submitted")
+	fmt.Println("Test Transaction Submitted")
 	fmt.Println("--------------------------------------------")
 	return nil
 }

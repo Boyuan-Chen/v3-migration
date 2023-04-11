@@ -9,11 +9,11 @@ import (
 	"github.com/Boyuan-Chen/v3-migration/engineapi"
 	"github.com/Boyuan-Chen/v3-migration/rpc"
 	"github.com/Boyuan-Chen/v3-migration/transaction"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -31,6 +31,10 @@ func Exit(err error) {
 }
 
 func main() {
+
+	// logger
+	logger := log.New()
+
 	// Create config
 	config := config.NewConfig(secretConfigPath, rollupConfigPath)
 
@@ -52,7 +56,6 @@ func main() {
 
 	smartContractViewer := transaction.NewSmartContractViewer(nil, l2EthClient)
 	transactionBuilder := transaction.NewTransactionBuilder(smartContractViewer, rpcClient, rollupConfig)
-	fmt.Println("Starting to submit transaction...", transactionBuilder)
 
 	// Get latest block
 	latestBlock, err := rpcClient.GetLatestBlock()
@@ -70,8 +73,6 @@ func main() {
 	txHash := legacyBlock.Transactions[0].Hash()
 	legacyTransaction, err := legacyRpcClient.GetLegacyTransaction(txHash)
 
-	// fmt.Println("-> Legacy transaction FROM: ", legacyTransaction.GetSender())
-
 	// Verify that legacy transaction has the same txHash
 	if legacyTransaction.Hash() != txHash {
 		Exit(fmt.Errorf("legacy transaction hash does not match"))
@@ -82,29 +83,29 @@ func main() {
 	if err != nil {
 		Exit(err)
 	}
-	transactions := make([]eth.Data, 1)
+	transactions := make([]engineapi.Data, 1)
 	transactions[0] = binaryLegacyTx
 
 	// Create engine
-	engine, err := engineapi.NewEngineAPI(rpcClient, rollupConfig)
+	engine, err := engineapi.NewEngineAPI(rpcClient, logger)
 	if err != nil {
 		Exit(err)
 	}
 
 	// Step 1: Get payloadID
 	// engine_forkchoiceUpdatedV1 -> Get payloadID
-	fc := &eth.ForkchoiceState{
+	fc := &engineapi.ForkchoiceState{
 		HeadBlockHash:      latestBlock.Hash,
 		SafeBlockHash:      latestBlock.Hash,
 		FinalizedBlockHash: latestBlock.Hash,
 	}
-	attributes := &eth.PayloadAttributes{
+	attributes := &engineapi.PayloadAttributes{
 		Timestamp:             hexutil.Uint64(legacyBlock.Time),
 		PrevRandao:            [32]byte{},
 		SuggestedFeeRecipient: common.HexToAddress("0x4200000000000000000000000000000000000011"),
 		Transactions:          transactions,
 		NoTxPool:              false,
-		GasLimit:              (*eth.Uint64Quantity)(&gasLimit),
+		GasLimit:              &gasLimit,
 	}
 
 	// engine_forkchoiceUpdatedV1
@@ -120,27 +121,24 @@ func main() {
 		Exit(err)
 	}
 	var txType types.Transaction
-	fmt.Println("-> Execution payload: ", executionRes)
-	pendingTransactionsNum := len(executionRes.Transactions)
-	fmt.Println("-> Pending transaction number: ", pendingTransactionsNum)
-	// fmt.Println("-> Pending transaction hash: ", executionRes.Transactions[0])
+	if len(executionRes.Transactions) != 1 {
+		logger.Warn("Pending transaction length is not 1")
+		Exit(fmt.Errorf("pending transaction length is not 1"))
+	}
 	err = txType.UnmarshalBinary(executionRes.Transactions[0])
 	if err != nil {
 		Exit(fmt.Errorf("failed to unmarshal transaction: %w", err))
 	}
-	fmt.Println("-> Pending transaction type: ", txType.Hash().Hex())
 	if txType.Hash() != txHash {
-		fmt.Println("-> Pending transaction hash is correct")
+		logger.Warn("Pending transaction hash is not correct", "pending", txType.Hash(), "latest", txHash)
+		Exit(fmt.Errorf("Pending transaction hash is correct"))
 	}
-	fmt.Println("-> Pending block hash: ", executionRes.BlockHash)
-	fmt.Println("-> Pending StateRoot: ", executionRes.StateRoot)
-	fmt.Println("-> Pending FeeRecipient: ", executionRes.FeeRecipient)
-	fmt.Println("-> Pending BlockNumber: ", executionRes.BlockNumber)
-	fmt.Println("-> Pending GasLimit: ", executionRes.GasLimit)
-	fmt.Println("-> Pending GasUsed: ", executionRes.GasUsed)
-	fmt.Println("-> Pending Timestamp: ", executionRes.Timestamp)
-	fmt.Println("-> Pending Difficulty: ", executionRes.ExtraData)
-	fmt.Println("-> Pending ExtraData: ", executionRes.ExtraData)
+	if executionRes.BlockHash != legacyBlock.Hash {
+		logger.Warn("Pending block hash is not correct", "pending", executionRes.BlockHash, "latest", legacyBlock.Hash)
+		Exit(fmt.Errorf("Pending block hash is correct"))
+	}
+
+	logger.Info("Execution block", "blockNumber", executionRes.BlockNumber)
 
 	// Step 3: Execute payload
 	// engine_newPayloadV1 -> Execute payload
@@ -148,18 +146,30 @@ func main() {
 	if err != nil {
 		Exit(err)
 	}
-
-	fmt.Println("-> Execution result: ", res)
+	if res.Status != "VALID" {
+		logger.Warn("Payload is invalid", "status", res.Status)
+		Exit(fmt.Errorf("payload is invalid"))
+	}
+	if *res.LatestValidHash != executionRes.BlockHash {
+		logger.Warn("Latest valid hash is not correct", "pending", executionRes.BlockHash, "latest", res.LatestValidHash)
+		Exit(fmt.Errorf("Latest valid hash is not correct"))
+	}
 
 	// Step 4: Submit block
 	// engine_executePayloadV1 -> Submit block
-	newfc := &eth.ForkchoiceState{
+	newfc := &engineapi.ForkchoiceState{
 		HeadBlockHash:      executionRes.BlockHash,
 		SafeBlockHash:      executionRes.BlockHash,
 		FinalizedBlockHash: executionRes.BlockHash,
 	}
-	_, err = engine.ForkchoiceUpdate(newfc, nil)
+	finalRes, err := engine.ForkchoiceUpdate(newfc, nil)
 	if err != nil {
 		Exit(err)
 	}
+	if finalRes.PayloadStatus.Status != "VALID" {
+		logger.Warn("Payload is invalid", "status", finalRes.PayloadStatus.Status)
+		Exit(fmt.Errorf("payload is invalid"))
+	}
+
+	logger.Info("Block submitted", "blockNumber", executionRes.BlockNumber)
 }

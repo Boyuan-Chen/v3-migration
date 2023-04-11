@@ -6,76 +6,58 @@ import (
 	"time"
 
 	"github.com/Boyuan-Chen/v3-migration/rpc"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum/go-ethereum/core/beacon"
 	"github.com/ethereum/go-ethereum/log"
 )
 
 type EngineAPI struct {
-	Engine sources.EngineClient
+	Engine client.RPC
+	logger log.Logger
 }
 
-func NewEngineAPI(rpcClient *rpc.RpcClient, rollupConfig *rollup.Config) (*EngineAPI, error) {
+func NewEngineAPI(rpcClient *rpc.RpcClient, logger log.Logger) (*EngineAPI, error) {
 	if rpcClient == nil {
 		return nil, fmt.Errorf("Failed to create NewEngineAPI, rpcClient is nil")
 	}
-	logger := log.New("hash")
-	engineAPI, err := sources.NewEngineClient(
-		rpcClient.Client,
-		logger,
-		nil,
-		sources.EngineClientDefaultConfig(rollupConfig),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to create NewEngineAPI: %s", err.Error())
-	}
 	return &EngineAPI{
-		Engine: *engineAPI,
+		Engine: rpcClient.Client,
+		logger: logger,
 	}, nil
 }
 
-func (e *EngineAPI) ForkchoiceUpdate(fc *eth.ForkchoiceState, attributes *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
-	fmt.Println("-> Getting New PayloadId... (ForkchoiceUpdate)")
+func (e *EngineAPI) ForkchoiceUpdate(fc *ForkchoiceState, attributes *PayloadAttributes) (*ForkchoiceUpdatedResult, error) {
+	// e.logger.Info("ForkchoiceUpdate... (engine_forkchoiceUpdatedV1)")
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
-	res, err := e.Engine.ForkchoiceUpdate(ctx, fc, attributes)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to update forkchoice: %s", err.Error())
+	var result ForkchoiceUpdatedResult
+	if err := e.Engine.CallContext(ctx, &result, "engine_forkchoiceUpdatedV1", fc, attributes); err != nil {
+		return nil, fmt.Errorf("Failed to obtain new payloadId: %v", err)
 	}
-	fmt.Println("-> Forkchoice Updated")
-	fmt.Println("-> New PayloadId: ", res.PayloadID)
-	fmt.Println("--------------------------------------------")
-	return res, nil
+	e.logger.Info("ForkchoiceUpdate Success", "PayloadStatus", result.PayloadStatus.Status, "LatestValidHash", result.PayloadStatus.LatestValidHash)
+	return &result, nil
 }
 
-func (e *EngineAPI) GetPayload(payloadID *beacon.PayloadID) (*eth.ExecutionPayload, error) {
-	fmt.Println("-> Getting New Payload... (GetPayload)")
+func (e *EngineAPI) GetPayload(payloadID *beacon.PayloadID) (*ExecutionPayload, error) {
+	// e.logger.Info("GetPayload... (engine_getPayloadV1)")
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
-	res, err := e.Engine.GetPayload(ctx, *payloadID)
-	if err != nil {
-		fmt.Println("GetPayload RES: ", res)
-		return nil, fmt.Errorf("Failed to get payload: %s", err.Error())
+	var result ExecutionPayload
+	if err := e.Engine.CallContext(ctx, &result, "engine_getPayloadV1", payloadID); err != nil {
+		return nil, fmt.Errorf("Failed to obtain new payloadId: %v", err)
 	}
-	fmt.Println("-> GetPayload Success")
-	fmt.Println("-> New Block Hash: ", res.BlockHash)
-	fmt.Println("-> New Block Transaction: ", res.Transactions)
-	fmt.Println("--------------------------------------------")
-	return res, nil
+	e.logger.Info("GetPayload Success", "PayloadID", payloadID, "BlockHash", result.BlockHash)
+	return &result, nil
 }
 
-func (e *EngineAPI) ExecutePayload(executionPayload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
-	fmt.Println("-> Executing New Block... (ExecutePayload)")
+func (e *EngineAPI) ExecutePayload(executionPayload *ExecutionPayload) (*PayloadStatusV1, error) {
+	// e.logger.Info("ExecutePayload... (engine_newPayloadV1)")
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
-	res, err := e.Engine.NewPayload(ctx, executionPayload)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to execute payload: %s", err.Error())
+	var result PayloadStatusV1
+	if err := e.Engine.CallContext(ctx, &result, "engine_newPayloadV1", executionPayload); err != nil {
+		return nil, fmt.Errorf("Failed to execute new payloadId: %v", err)
 	}
-	fmt.Println("-> ExecutePayload Success")
-	fmt.Println("-> New Latest Valid Hash: ", res.LatestValidHash)
-	fmt.Println("--------------------------------------------")
-	return res, nil
+	e.logger.Info("ExecutePayload Result", "PayloadStatus", result.Status, "LatestValidHash", result.LatestValidHash)
+	return &result, nil
 }
