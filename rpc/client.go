@@ -32,12 +32,12 @@ func NewRpcClient(endpoint string, secret [32]byte) (*RpcClient, error) {
 	return &RpcClient{Client: client}, nil
 }
 
-func (rpc *RpcClient) GetBlock() (*Block, error) {
+func (rpc *RpcClient) GetLatestBlock() (*Block, error) {
 	var block *Block
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	if err := rpc.Client.CallContext(ctx, &block, "eth_getBlockByNumber", "latest", false); err != nil {
-		return nil, errors.New("Failed to obtain head block")
+		return nil, fmt.Errorf("Failed to obtain latest block: %v", err)
 	}
 	return block, nil
 }
@@ -48,7 +48,7 @@ func (rpc *RpcClient) GetNextNonce(account *common.Address) (uint64, error) {
 	defer cancel()
 	if err := rpc.Client.CallContext(ctx, &nonce, "eth_getTransactionCount", account, "pending"); err != nil {
 		fmt.Println(err)
-		return 0, errors.New("Failed to obtain nonce")
+		return 0, fmt.Errorf("Failed to obtain nonce: %v", err)
 	}
 	return uint64(nonce), nil
 }
@@ -58,21 +58,10 @@ func (rpc *RpcClient) GetGasPrice() (*big.Int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	if err := rpc.Client.CallContext(ctx, &hex, "eth_gasPrice"); err != nil {
-		return nil, errors.New("Failed to obtain gas price")
+		return nil, fmt.Errorf("Failed to obtain gas price: %v", err)
 	}
 	return (*big.Int)(&hex), nil
 }
-
-// func (rpc *RpcClient) GetPendingTransaction() (*[]interface{}, error) {
-// 	var pendingTransactions *[]interface{}
-// 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-// 	defer cancel()
-// 	if err := rpc.Client.CallContext(ctx, pendingTransactions, "txpool_status"); err != nil {
-// 		fmt.Println(err)
-// 		return nil, errors.New("Failed to obtain pending transactions")
-// 	}
-// 	return pendingTransactions, nil
-// }
 
 func (rpc *RpcClient) SendRawTransaction(tx *types.Transaction) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
@@ -93,12 +82,31 @@ func (rpc *RpcClient) GetBalance(addr common.Address) (*big.Int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	if err := rpc.Client.CallContext(ctx, &balance, "eth_getBalance", addr, "latest"); err != nil {
-		return nil, errors.New("Failed to obtain balance")
+		return nil, fmt.Errorf("Failed to obtain balance: %v", err)
 	}
-	// string to big.Int
 	balanceInt, ok := new(big.Int).SetString(balance, 0)
 	if !ok {
 		return nil, errors.New("Failed to convert balance to big.Int")
 	}
 	return balanceInt, nil
+}
+
+func (rpc *RpcClient) GetLegacyBlock(num *big.Int) (*LegacyBlock, error) {
+	var block *LegacyBlock
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	if err := rpc.Client.CallContext(ctx, &block, "eth_getBlockByNumber", hexutil.EncodeBig(num), true); err != nil {
+		return nil, fmt.Errorf("Failed to obtain block: %v", err)
+	}
+	return block, nil
+}
+
+func (rpc *RpcClient) GetLegacyTransaction(hash common.Hash) (*LegacyTransaction, error) {
+	var tx *LegacyTransaction
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	if err := rpc.Client.CallContext(ctx, &tx, "eth_getTransactionByHash", hash); err != nil {
+		return nil, fmt.Errorf("Failed to obtain transaction: %v", err)
+	}
+	return tx, nil
 }
