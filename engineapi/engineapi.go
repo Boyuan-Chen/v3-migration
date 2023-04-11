@@ -56,6 +56,7 @@ func (e *EngineAPI) GetPayload(payloadID *beacon.PayloadID) (*eth.ExecutionPaylo
 	defer cancel()
 	res, err := e.Engine.GetPayload(ctx, *payloadID)
 	if err != nil {
+		fmt.Println("GetPayload RES: ", res)
 		return nil, fmt.Errorf("Failed to get payload: %s", err.Error())
 	}
 	fmt.Println("-> GetPayload Success")

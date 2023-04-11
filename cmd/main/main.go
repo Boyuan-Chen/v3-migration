@@ -12,13 +12,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 var (
 	l2PublicEndpoint = "http://localhost:9545"
 	l2Endpoint       = "http://localhost:8551"
-	l2LegacyEndpoint = "https://goerli.boba.network"
+	l2LegacyEndpoint = "https://replica.goerli.boba.network"
 
 	secretConfigPath = "./static/test-jwt-secret.txt"
 	rollupConfigPath = "./static/rollup.json"
@@ -118,16 +119,28 @@ func main() {
 	if err != nil {
 		Exit(err)
 	}
-	// var txType types.Transaction
+	var txType types.Transaction
 	fmt.Println("-> Execution payload: ", executionRes)
 	pendingTransactionsNum := len(executionRes.Transactions)
 	fmt.Println("-> Pending transaction number: ", pendingTransactionsNum)
 	// fmt.Println("-> Pending transaction hash: ", executionRes.Transactions[0])
-	// err = txType.UnmarshalBinary(executionRes.Transactions[0])
-	// if err != nil {
-	// Exit(err)
-	// }
-	// fmt.Println("-> Pending transaction type: ", txType.Hash().Hex())
+	err = txType.UnmarshalBinary(executionRes.Transactions[0])
+	if err != nil {
+		Exit(fmt.Errorf("failed to unmarshal transaction: %w", err))
+	}
+	fmt.Println("-> Pending transaction type: ", txType.Hash().Hex())
+	if txType.Hash() != txHash {
+		fmt.Println("-> Pending transaction hash is correct")
+	}
+	fmt.Println("-> Pending block hash: ", executionRes.BlockHash)
+	fmt.Println("-> Pending StateRoot: ", executionRes.StateRoot)
+	fmt.Println("-> Pending FeeRecipient: ", executionRes.FeeRecipient)
+	fmt.Println("-> Pending BlockNumber: ", executionRes.BlockNumber)
+	fmt.Println("-> Pending GasLimit: ", executionRes.GasLimit)
+	fmt.Println("-> Pending GasUsed: ", executionRes.GasUsed)
+	fmt.Println("-> Pending Timestamp: ", executionRes.Timestamp)
+	fmt.Println("-> Pending Difficulty: ", executionRes.ExtraData)
+	fmt.Println("-> Pending ExtraData: ", executionRes.ExtraData)
 
 	// Step 3: Execute payload
 	// engine_newPayloadV1 -> Execute payload

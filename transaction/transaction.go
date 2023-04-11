@@ -194,7 +194,6 @@ func (t *TransactionBuilder) MarshalBinary(tx interface{}) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("Failed to marshal legacy transaction: %s", err.Error())
 		}
-		fmt.Println("Got legacy transaction: ", binaryTx)
 		return binaryTx, nil
 	default:
 		return nil, fmt.Errorf("Unknown transaction type")
