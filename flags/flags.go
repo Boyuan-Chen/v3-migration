@@ -39,6 +39,11 @@ var (
 		Usage:  "Epoch length in second",
 		EnvVar: "EPOCH_LENGTH_SECOND",
 	}
+	BobaHardForkBlockFlag = cli.IntFlag{
+		Name:   "boba-hard-fork-block",
+		Usage:  "Boba hard fork block number",
+		EnvVar: "BOBA_HARD_FORK_BLOCK",
+	}
 )
 
 var Flags = []cli.Flag{
@@ -48,4 +53,5 @@ var Flags = []cli.Flag{
 	JWTSecretPathFlag,
 	MaxWaitingTimeFlag,
 	EpochLengthSecondFlag,
+	BobaHardForkBlockFlag,
 }

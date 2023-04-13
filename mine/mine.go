@@ -15,14 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-var (
-	l2PublicEndpoint = "http://localhost:9545"
-	l2Endpoint       = "http://localhost:8551"
-	l2LegacyEndpoint = "https://replica.goerli.boba.network"
-
-	secretConfigPath = "./static/test-jwt-secret.txt"
-)
-
 type Miner struct {
 	l2PublicRpc  *rpc.RpcClient
 	l2LegacyRpc  *rpc.RpcClient
@@ -47,6 +39,11 @@ func (m *Miner) MineBlock() error {
 			return err
 		}
 		nextBlockNumber := uint64(latestBlock.Number) + 1
+
+		if nextBlockNumber > uint64(m.config.BobaHardForkBlock) {
+			log.Info("Hard fork block reached, stopping miner")
+			return nil
+		}
 
 		legacyBlock, err := m.l2LegacyRpc.GetLegacyBlock(big.NewInt(int64(nextBlockNumber)))
 		if err != nil {
@@ -115,7 +112,7 @@ func (m *Miner) MineBlock() error {
 			return fmt.Errorf("pending block hash is not correct")
 		}
 
-		log.Info("Execution block", "blockNumber", uint64(executionRes.BlockNumber))
+		log.Info("Executing block", "blockNumber", uint64(executionRes.BlockNumber))
 
 		// Step 3: Execute payload
 		// engine_newPayloadV1 -> Execute payload

@@ -19,6 +19,7 @@ type Config struct {
 	JWTSecretPath     string
 	MaxWaitingTime    int
 	EpochLengthSecond int
+	BobaHardForkBlock int
 }
 
 func NewConfig(ctx *cli.Context) *Config {
@@ -39,6 +40,13 @@ func NewConfig(ctx *cli.Context) *Config {
 	} else {
 		log.Crit("JWT Secret Path is not set")
 	}
+
+	if ctx.GlobalIsSet(flags.BobaHardForkBlockFlag.Name) {
+		cfg.BobaHardForkBlock = ctx.GlobalInt(flags.BobaHardForkBlockFlag.Name)
+	} else {
+		log.Crit("Boba Hard Fork Block is not set")
+	}
+
 	return &cfg
 }
 
